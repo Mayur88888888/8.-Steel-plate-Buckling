@@ -7,9 +7,12 @@ Small VBA Based code to analysis the Load on the Steel plate and its effect visu
 2. Import Module1.bas in Developer mode
 3. Run SimulateBucklingArc
 
-![image](https://github.com/user-attachments/assets/ac710022-460a-457d-a10e-00deaaa6f59b)
+2 Micros are present.
+Run - SimulateDynamicBuckling()
 
+![image](https://github.com/user-attachments/assets/d30648b1-f52f-4d42-9193-e2d80e19d57e)
 
-![image](https://github.com/user-attachments/assets/793fcf58-552c-4399-b3e7-61fa58fb784a)
+you will get below results and chart too...
 
+![image](https://github.com/user-attachments/assets/6d36fb2e-23cd-4027-a594-c099430ed422)
 
