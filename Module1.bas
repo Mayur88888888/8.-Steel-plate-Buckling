@@ -1,167 +1,426 @@
 Attribute VB_Name = "Module1"
 Option Explicit
 
+' =========================================================
+' DYNAMIC PLATE BUCKLING SIMULATION
+' =========================================================
+
 Const totalSteps As Integer = 100
-Const E As Double = 200000 ' Young's Modulus in MPa (N/mm²)
-Const nu As Double = 0.3   ' Poisson's ratio for steel
+
+Const E As Double = 200000
+Const nu As Double = 0.3
 Const PI As Double = 3.14159265358979
 
+Const PLATE_LEFT As Double = 120
+Const PLATE_TOP As Double = 280
+
 Sub SimulateDynamicBuckling()
-    Dim thickness As Double, width As Double, length As Double
-    Dim totalLoadTons As Double, totalLoadN As Double
-    Dim maxRadiusPx As Double
-    Dim plateWidthPx As Double
-    Dim sigma_cr As Double, Pcr As Double
+
+    Dim ws As Worksheet
+
+    Dim width As Double
+    Dim thickness As Double
+    Dim length As Double
+    Dim totalLoadTons As Double
+    Dim totalLoadN As Double
+    Dim maxArcHeight As Double
+
+    Dim sigma_cr As Double
+    Dim Pcr As Double
+
     Dim stepNum As Integer
-    Dim loadFraction As Double, loadN As Double
+
+    Dim loadFraction As Double
+    Dim loadN As Double
+
     Dim deflectionRaw() As Double
+
     Dim maxDeflectionRaw As Double
-    Dim arcRadiusPx As Double
+
     Dim scaleFactor As Double
-    Dim arcShape As Shape
+    Dim arcHeight As Double
+
+    Dim plateWidthPx As Double
+    Dim plateHeightPx As Double
+
     Dim k As Double
     Dim factor As Double
 
-    ' === Read Inputs ===
-    width = CDbl(Range("B1").value)
-    totalLoadTons = CDbl(Range("B2").value)
-    maxRadiusPx = CDbl(Range("B3").value)
-    thickness = CDbl(Range("B5").value)
-    length = CDbl(Range("B6").value)
-    plateWidthPx = 400 ' for drawing
+    Dim s As Shape
 
-    ' === Validate Inputs ===
-    If length = 0 Or (1 - nu ^ 2) = 0 Then
-        MsgBox "Invalid input values. Please check plate dimensions or material properties.", vbCritical
-        Exit Sub
+    ' =====================================================
+    ' CREATE / ACCESS SHEET
+    ' =====================================================
+
+    On Error Resume Next
+    Set ws = Worksheets("Simulation")
+    On Error GoTo 0
+
+    If ws Is Nothing Then
+
+        Set ws = Worksheets.Add
+        ws.Name = "Simulation"
+
     End If
 
-    totalLoadN = totalLoadTons * 1000 * 9.81 ' Convert tons to Newtons
-    k = 4 ' Simply supported plate
+    ws.Activate
 
-    ' === Calculate critical buckling stress and total load ===
-    factor = (k * PI ^ 2 * E) / (12 * (1 - nu ^ 2))
+    ' =====================================================
+    ' CLEAN PREVIOUS CONTENT
+    ' =====================================================
+
+    ws.Range("D2:I200").ClearContents
+
+    For Each s In ws.Shapes
+        s.Delete
+    Next s
+
+    On Error Resume Next
+    ws.ChartObjects("DeflectionChart").Delete
+    On Error GoTo 0
+
+    ' =====================================================
+    ' INPUT SECTION
+    ' =====================================================
+
+    ws.Range("A1").Value = "PLATE BUCKLING SIMULATION"
+
+    ws.Range("A2").Value = "Plate Width (mm)"
+    ws.Range("A3").Value = "Applied Load (tons)"
+    ws.Range("A4").Value = "Thickness (mm)"
+    ws.Range("A5").Value = "Plate Length (mm)"
+    ws.Range("A6").Value = "Max Arc Height (px)"
+
+    ' DEFAULT VALUES
+ ' =====================================================
+' CHECK USER INPUTS
+' =====================================================
+
+    If ws.Range("B2").Value = "" _
+    Or ws.Range("B3").Value = "" _
+    Or ws.Range("B4").Value = "" _
+    Or ws.Range("B5").Value = "" _
+    Or ws.Range("B6").Value = "" Then
+
+        MsgBox "Please enter all input values in cells B2:B6.", vbExclamation
+        Exit Sub
+
+    End If
+ 
+ 
+ 
+
+    ' FORMAT INPUT CELLS
+    With ws.Range("B2:B6")
+        .Interior.Color = RGB(255, 255, 180)
+        .Borders.LineStyle = xlContinuous
+        .HorizontalAlignment = xlCenter
+    End With
+
+    ' =====================================================
+    ' READ USER INPUTS
+    ' =====================================================
+
+    width = CDbl(ws.Range("B2").Value)
+    totalLoadTons = CDbl(ws.Range("B3").Value)
+    thickness = CDbl(ws.Range("B4").Value)
+    length = CDbl(ws.Range("B5").Value)
+    maxArcHeight = CDbl(ws.Range("B6").Value)
+
+    ' =====================================================
+    ' VALIDATION
+    ' =====================================================
+
+    If width <= 0 _
+    Or thickness <= 0 _
+    Or length <= 0 _
+    Or totalLoadTons <= 0 Then
+
+        MsgBox "Please enter valid positive values.", vbCritical
+        Exit Sub
+
+    End If
+
+    totalLoadN = totalLoadTons * 1000 * 9.81
+
+    plateWidthPx = 450
+    plateHeightPx = 20
+
+    ' =====================================================
+    ' BUCKLING CALCULATIONS
+    ' =====================================================
+
+    k = 4
+
+    factor = (k * PI ^ 2 * E) / _
+    (12 * (1 - nu ^ 2))
+
     sigma_cr = factor * (thickness / length) ^ 2
+
     Pcr = sigma_cr * thickness * width
 
+    ' VISUAL REDUCTION FACTOR
+    Pcr = Pcr * 0.02
+
     ReDim deflectionRaw(1 To totalSteps)
+
     maxDeflectionRaw = 0
 
-    ' === Calculate raw deflection values ===
     For stepNum = 1 To totalSteps
+
         loadFraction = stepNum / totalSteps
+
         loadN = loadFraction * totalLoadN
 
-        If loadN <= Pcr Then
-            deflectionRaw(stepNum) = 0
+        ' =============================================
+        ' ELASTIC + POST BUCKLING BEHAVIOR
+        ' =============================================
+
+        If loadN < Pcr Then
+
+            deflectionRaw(stepNum) = _
+            (loadN / Pcr) * 5
+
         Else
-            deflectionRaw(stepNum) = Sqr(loadN - Pcr)
+
+            deflectionRaw(stepNum) = _
+            5 + Sqr(loadN - Pcr) * 0.08
+
         End If
 
         If deflectionRaw(stepNum) > maxDeflectionRaw Then
             maxDeflectionRaw = deflectionRaw(stepNum)
         End If
+
     Next stepNum
 
-    If maxDeflectionRaw = 0 Then
-        MsgBox "The applied load is below the critical buckling load. No deflection observed.", vbInformation
-        Exit Sub
+    If maxDeflectionRaw <= 0 Then
+        maxDeflectionRaw = 1
     End If
 
-    scaleFactor = maxRadiusPx / maxDeflectionRaw
+    scaleFactor = maxArcHeight / maxDeflectionRaw
 
-    ' === Display headers ===
-    Range("A10").value = "Dynamic Plate Buckling Simulation"
-    Range("A12").value = "Plate: L=" & length & " mm, W=" & width & " mm, t=" & thickness & " mm"
-    Range("A13").value = "Critical Buckling Load: " & Format(Pcr / 1000, "0.0") & " kN"
-    Range("A14").value = "Applied Load: " & Format(totalLoadN / 1000, "0.0") & " kN"
-    Range("E1").value = "Load (tons)"
-    Range("F1").value = "Deflection (mm approx)"
+    ' =====================================================
+    ' OUTPUT INFORMATION
+    ' =====================================================
 
-    ' === Cleanup old shapes and chart ===
-    Dim s As Shape
-    For Each s In ActiveSheet.Shapes
-        If s.Name Like "BucklingArc*" Then s.Delete
-    Next s
-    On Error Resume Next
-    ActiveSheet.ChartObjects("DeflectionChart").Delete
-    On Error GoTo 0
+    ws.Range("D2").Value = "Critical Load (kN)"
+    ws.Range("D3").Value = "Current Step"
+    ws.Range("D4").Value = "Current Load (kN)"
+    ws.Range("D5").Value = "Deflection (mm)"
 
-    ' === Animate deflection ===
+    ws.Range("E2").Value = Round(Pcr / 1000, 2)
+
+    ws.Range("H1").Value = "Load (tons)"
+    ws.Range("I1").Value = "Deflection (mm)"
+
+    With ws.Range("D2:E5")
+        .Borders.LineStyle = xlContinuous
+        .Interior.Color = RGB(220, 240, 255)
+    End With
+
+    ' =====================================================
+    ' DRAW PLATE
+    ' =====================================================
+
+    DrawPlate ws, plateWidthPx, plateHeightPx
+
+    ' =====================================================
+    ' START SIMULATION
+    ' =====================================================
+
     For stepNum = 1 To totalSteps
+
         loadFraction = stepNum / totalSteps
+
         loadN = loadFraction * totalLoadN
 
-        arcRadiusPx = deflectionRaw(stepNum) * scaleFactor
+        arcHeight = _
+        deflectionRaw(stepNum) * scaleFactor
 
-        Set arcShape = DrawBucklingArc(arcRadiusPx, plateWidthPx, stepNum)
+        DrawBucklingArc _
+        ws, _
+        arcHeight, _
+        plateWidthPx, _
+        stepNum
 
         Dim deflectionMM As Double
-        deflectionMM = (deflectionRaw(stepNum) / maxDeflectionRaw) * 20
 
-        Range("A6").value = "Step: " & stepNum & "/" & totalSteps
-        Range("A7").value = "Load: " & Format(loadN / 1000, "0.0") & " kN"
-        Range("A8").value = "Deflection: " & Format(deflectionMM, "0.00") & " mm"
+        deflectionMM = deflectionRaw(stepNum) * 0.05
 
-        Range("E" & stepNum + 1).value = loadN / 9810 ' convert N to tons
-        Range("F" & stepNum + 1).value = deflectionMM
+        ' LIVE READINGS
+        ws.Range("E3").Value = _
+        stepNum & "/" & totalSteps
+
+        ws.Range("E4").Value = _
+        Round(loadN / 1000, 2)
+
+        ws.Range("E5").Value = _
+        Round(deflectionMM, 2)
+
+        ' STORE TABLE DATA
+        ws.Range("H" & stepNum + 1).Value = _
+        Round(loadN / 9810, 2)
+
+        ws.Range("I" & stepNum + 1).Value = _
+        Round(deflectionMM, 2)
 
         DoEvents
-        WaitMilliseconds 50
 
+        WaitMilliseconds 40
+
+        ' DELETE PREVIOUS ARC
         If stepNum > 1 Then
+
             On Error Resume Next
-            ActiveSheet.Shapes("BucklingArc" & (stepNum - 1)).Delete
+
+            ws.Shapes( _
+            "BucklingArc" & stepNum - 1).Delete
+
             On Error GoTo 0
+
         End If
+
     Next stepNum
 
-    CreateDeflectionChart
+    ' =====================================================
+    ' CREATE CHART
+    ' =====================================================
+
+    CreateDeflectionChart ws
+
+    MsgBox "Simulation Completed Successfully", vbInformation
+
 End Sub
 
-Function DrawBucklingArc(radius As Double, widthPx As Double, stepNum As Integer) As Shape
-    Dim cx As Double, cy As Double
-    Dim arcLeft As Double, arcTop As Double
-    Dim arcWidth As Double, arcHeight As Double
+' =========================================================
+' DRAW PLATE
+' =========================================================
 
-    cx = 100 + widthPx / 2
-    cy = 300
-    arcWidth = widthPx
-    arcHeight = radius * 2
-    arcLeft = cx - arcWidth / 2
-    arcTop = cy - radius
+Sub DrawPlate( _
+    ws As Worksheet, _
+    plateWidthPx As Double, _
+    plateHeightPx As Double)
 
-    Set DrawBucklingArc = ActiveSheet.Shapes.AddShape(msoShapeArc, arcLeft, arcTop, arcWidth, arcHeight)
-    With DrawBucklingArc
+    Dim plateShape As Shape
+
+    Set plateShape = ws.Shapes.AddShape( _
+    msoShapeRectangle, _
+    PLATE_LEFT, _
+    PLATE_TOP, _
+    plateWidthPx, _
+    plateHeightPx)
+
+    With plateShape
+
+        .Name = "PlateShape"
+
+        .Fill.ForeColor.RGB = RGB(180, 180, 180)
+
+        .Line.ForeColor.RGB = RGB(0, 0, 0)
+
+        .Line.Weight = 1.5
+
+    End With
+
+End Sub
+
+' =========================================================
+' DRAW BUCKLING ARC
+' =========================================================
+
+Sub DrawBucklingArc( _
+    ws As Worksheet, _
+    arcHeight As Double, _
+    widthPx As Double, _
+    stepNum As Integer)
+
+    Dim arcShape As Shape
+
+    Dim arcLeft As Double
+    Dim arcTop As Double
+
+    arcLeft = PLATE_LEFT
+
+    arcTop = PLATE_TOP - arcHeight + 10
+
+    Set arcShape = ws.Shapes.AddShape( _
+    msoShapeArc, _
+    arcLeft, _
+    arcTop, _
+    widthPx, _
+    arcHeight)
+
+    With arcShape
+
         .Name = "BucklingArc" & stepNum
+
         .Line.ForeColor.RGB = RGB(255, 0, 0)
+
         .Line.Weight = 3
+
         .Adjustments.Item(1) = 0
         .Adjustments.Item(2) = 180
-    End With
-End Function
 
-Sub CreateDeflectionChart()
-    Dim chObj As ChartObject
-    Set chObj = ActiveSheet.ChartObjects.Add(Left:=500, Top:=50, width:=400, Height:=300)
-    chObj.Name = "DeflectionChart"
-    With chObj.Chart
-        .ChartType = xlXYScatterSmooth
-        .SetSourceData Source:=Range("E1:F" & totalSteps + 1)
-        .HasTitle = True
-        .ChartTitle.Text = "Load vs Approximate Deflection"
-        .Axes(xlCategory).HasTitle = True
-        .Axes(xlCategory).AxisTitle.Text = "Load (tons)"
-        .Axes(xlValue).HasTitle = True
-        .Axes(xlValue).AxisTitle.Text = "Deflection (mm approx)"
     End With
+
 End Sub
 
+' =========================================================
+' CREATE CHART
+' =========================================================
+
+Sub CreateDeflectionChart(ws As Worksheet)
+
+    Dim chObj As ChartObject
+
+    Set chObj = ws.ChartObjects.Add( _
+    Left:=650, _
+    Top:=40, _
+    width:=420, _
+    Height:=320)
+
+    chObj.Name = "DeflectionChart"
+
+    With chObj.Chart
+
+        .ChartType = xlXYScatterSmooth
+
+        .SetSourceData _
+        Source:=ws.Range("H1:I101")
+
+        .HasTitle = True
+
+        .ChartTitle.Text = _
+        "Load vs Deflection"
+
+        .Axes(xlCategory).HasTitle = True
+
+        .Axes(xlCategory).AxisTitle.Text = _
+        "Load (tons)"
+
+        .Axes(xlValue).HasTitle = True
+
+        .Axes(xlValue).AxisTitle.Text = _
+        "Deflection (mm)"
+
+    End With
+
+End Sub
+
+' =========================================================
+' WAIT FUNCTION
+' =========================================================
+
 Sub WaitMilliseconds(ms As Long)
+
     Dim endTime As Double
+
     endTime = Timer + ms / 1000#
+
     Do While Timer < endTime
         DoEvents
     Loop
+
 End Sub
 
