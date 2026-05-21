@@ -9,12 +9,16 @@ Small VBA Based code to analysis the Load on the Steel plate and its effect visu
 
 2 Micros are present.
 Run - SimulateDynamicBuckling()
+<img width="553" height="467" alt="image" src="https://github.com/user-attachments/assets/ae3d5bef-c921-42b2-b62f-03c06bc3f230" />
 
-![image](https://github.com/user-attachments/assets/d30648b1-f52f-4d42-9193-e2d80e19d57e)
+
+<img width="571" height="212" alt="image" src="https://github.com/user-attachments/assets/71d1db24-8de0-4a52-babf-1e50d19bc015" />
+
+<img width="1422" height="612" alt="image" src="https://github.com/user-attachments/assets/3a74123c-9d72-4716-9102-a8b432a4de32" />
+
 
 you will get below results and chart too...
 
-![image](https://github.com/user-attachments/assets/6d36fb2e-23cd-4027-a594-c099430ed422)
+<img width="496" height="382" alt="image" src="https://github.com/user-attachments/assets/4978ba2d-bc09-47c0-bfdb-7bc1464d598d" />
 
-<img width="831" height="619" alt="image" src="https://github.com/user-attachments/assets/36827415-6490-4726-8b43-1eb045886ef2" />
 
